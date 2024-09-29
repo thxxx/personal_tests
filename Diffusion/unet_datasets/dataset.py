@@ -1,10 +1,10 @@
+# dataset 준비
 import os
 import numpy as np
-
 import torch
+import numpy as np
 import torch.nn as nn
 
-## 데이터 로더를 구현하기
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, data_dir, transform=None):
         self.data_dir = data_dir
@@ -20,7 +20,7 @@ class Dataset(torch.utils.data.Dataset):
 
         self.lst_label = lst_label
         self.lst_input = lst_input
-
+    
     def __len__(self):
         return len(self.lst_label)
 
@@ -43,7 +43,6 @@ class Dataset(torch.utils.data.Dataset):
 
         return data
 
-
 ## 트렌스폼 구현하기
 class ToTensor(object):
     def __call__(self, data):
@@ -63,11 +62,8 @@ class Normalization(object):
 
     def __call__(self, data):
         label, input = data['label'], data['input']
-
         input = (input - self.mean) / self.std
-
         data = {'label': label, 'input': input}
-
         return data
 
 class RandomFlip(object):
@@ -85,4 +81,3 @@ class RandomFlip(object):
         data = {'label': label, 'input': input}
 
         return data
-
