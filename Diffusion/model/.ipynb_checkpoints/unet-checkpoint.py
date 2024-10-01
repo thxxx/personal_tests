@@ -34,7 +34,7 @@ class Unet(nn.Module):
         for i, mult in enumerate(mults):
             out_channels = dim*mult
             self.downblocks.append(
-                ResConvblock(in_channels, out_channels, is_attn=False, time_emb_dim=time_dim)
+                ResConvblock(in_channels, out_channels, is_attn=True, time_emb_dim=time_dim)
             )
             self.downblocks.append(
                 DownSample(out_channels)
@@ -43,8 +43,8 @@ class Unet(nn.Module):
         
         middle_channel = out_channels*2
         self.middleblocks = nn.ModuleList([
-            ResConvblock(out_channels, middle_channel, is_attn=False, time_emb_dim=time_dim),
-            ResConvblock(middle_channel, middle_channel, is_attn=False, time_emb_dim=time_dim)
+            ResConvblock(out_channels, middle_channel, is_attn=True, time_emb_dim=time_dim),
+            ResConvblock(middle_channel, middle_channel, is_attn=True, time_emb_dim=time_dim)
         ])
 
         in_channels=middle_channel
@@ -60,7 +60,7 @@ class Unet(nn.Module):
         for i, mult in enumerate(mults[::-1]):
             out_channels = dim*mult
             self.upblocks.append(
-                ResConvblock(out_channels*2, out_channels, is_attn=False, time_emb_dim=time_dim)
+                ResConvblock(out_channels*2, out_channels, is_attn=True, time_emb_dim=time_dim)
             )
 
     def forward(self, x, t):

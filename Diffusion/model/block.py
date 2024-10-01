@@ -19,7 +19,7 @@ class Block(nn.Module):
         )
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(0.0)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x, scale_shift):
         out = self.conv(x)
@@ -42,7 +42,7 @@ class ResConvblock(torch.nn.Module):
         self.block1 = Block(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
         self.block2 = Block(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
         
-        self.is_atten = is_attn
+        self.is_attn = is_attn
         self.time_emb_dim = time_emb_dim
         self.attn = AttnBlock(out_channels)
         
@@ -59,7 +59,7 @@ class ResConvblock(torch.nn.Module):
         
         out = self.block1(x, scale_shift)
         
-        if self.is_atten:
+        if self.is_attn:
             out = self.attn(out)
         
         out = self.block2(out, scale_shift)

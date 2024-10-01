@@ -1,4 +1,6 @@
 import torch.nn as nn
+import torch
+import torch.nn.functional as F
 
 class AttnBlock(nn.Module):
     def __init__(self, in_c):
