@@ -1,11 +1,11 @@
-from .block import ResConvblock
+from .block import ResBlock
 from .module import UpSample, DownSample, SinusoidalPositionalEmbedding
-from .attn import AttnBlock
 import torch.nn.functional as F
 import torch.nn as nn
 import torch
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
+from .attention import SpatialTransformer
 
 class Unet(nn.Module):
     def __init__(
@@ -14,19 +14,19 @@ class Unet(nn.Module):
         in_channels=4,
         model_channels=256,
         num_res_blocks=2,
-        attention_resolutions=[4,2,1],
+        attention_resolutions=[0, 1, 2],
     ):
         super(Unet, self).__init__()
         
         self.init_conv = nn.Conv2d(in_channels, model_channels, kernel_size=3, stride=1, padding=1)
         self.last_conv = nn.Conv2d(model_channels, in_channels, kernel_size=3, stride=1, padding=1)
         
-        time_dim = dim*4
-        sinu_pos_embedding = SinusoidalPositionalEmbedding(dim, 10000)
+        time_dim = model_channels*4
+        sinu_pos_embedding = SinusoidalPositionalEmbedding(model_channels, 10000)
         
         self.time_mlp = nn.Sequential(
             sinu_pos_embedding,
-            nn.Linear(dim, time_dim),
+            nn.Linear(model_channels, time_dim),
             nn.GELU(),
             nn.Linear(time_dim, time_dim)
         )
@@ -39,25 +39,26 @@ class Unet(nn.Module):
                 self.downblocks.append(
                     ResBlock(in_channels, out_channels, time_emb_dim=time_dim)
                 )
-                self.downblocks.append(
-                    CrossAttention()
-                )
+                if level in attention_resolutions:
+                    self.downblocks.append(
+                        SpatialTransformer()
+                    )
             if level != len(mults)-1:
                 self.downblocks.append(
                     DownSample(out_channels)
                 )
-            in_channels = dim*mult
+            in_channels = model_channels * mult
         
         middle_channel = out_channels*2
         self.middleblocks = nn.ModuleList([
-            ResConvblock(out_channels, middle_channel, is_attn=True, time_emb_dim=time_dim),
-            ResConvblock(middle_channel, middle_channel, is_attn=True, time_emb_dim=time_dim)
+            ResBlock(out_channels, middle_channel, is_attn=True, time_emb_dim=time_dim),
+            ResBlock(middle_channel, middle_channel, is_attn=True, time_emb_dim=time_dim)
         ])
 
         in_channels=middle_channel
         self.upsamples = nn.ModuleList()
         for i, mult in enumerate(mults[::-1]):
-            out_channels = dim*mult
+            out_channels = model_channels*mult
             self.upsamples.append(
                 UpSample(in_channels, out_channels)
             )
@@ -65,9 +66,9 @@ class Unet(nn.Module):
         
         self.upblocks = nn.ModuleList()
         for i, mult in enumerate(mults[::-1]):
-            out_channels = dim*mult
+            out_channels = model_channels*mult
             self.upblocks.append(
-                ResConvblock(out_channels*2, out_channels, is_attn=True, time_emb_dim=time_dim)
+                ResBlock(out_channels*2, out_channels, is_attn=True, time_emb_dim=time_dim)
             )
 
     def forward(self, x, t):
