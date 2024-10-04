@@ -38,12 +38,12 @@ class CrossAttention(nn.Module):
         return output
 
 class CrossAttention2(nn.Module):
-    def __init__(self, in_channels, dim_head=64, n_heads=8, is_cross=False, context_dim=None):
+    def __init__(self, in_channels, dim_head=64, n_heads=8, context_dim=None):
         self.n_heads = n_heads
         self.dim_head = dim_head
         self.in_channels = in_channels
 
-        self.context_dim = context_dim if context_dim else in_channels
+        self.context_dim = context_dim if context_dim is not None else in_channels
         inner_dim = dim_head * n_heads
 
         self.to_q = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
@@ -68,7 +68,7 @@ class CrossAttention2(nn.Module):
         k = k.view(bs, self.n_heads, self.dim_head, h*w)
         v = v.view(bs, self.n_heads, self.dim_head, h*w)
 
-        attention_weight = F.softmax(torch.matmul(q, k)/self.scale) # bs, n_heads, h*w, h*w
+        attention_weight = F.softmax(torch.matmul(q, k)/self.scale, dim=-1) # bs, n_heads, h*w, h*w
         output = torch.matmul(v, attention_weight) # bs, n_heads, dim_head, h*w 
         # torch.bmm은 batch단위 matnul. 따라서 입력이 3차원 이어야함
 
