@@ -22,8 +22,8 @@ class AttnBlock(nn.Module):
         attn_score = torch.bmm(q, k)
         attn_weight = F.softmax(attn_score/(int(C)**0.5), dim=-1)
 
-        attn = torch.bmm(attn_weight, v)
+        output = torch.bmm(attn_weight, v)
 
-        x = attn.view(B, H, W, C).permute(0, 3, 1, 2)
+        x = output.view(B, H, W, C).permute(0, 3, 1, 2)
         
         return x
