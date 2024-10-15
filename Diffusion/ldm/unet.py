@@ -36,7 +36,9 @@ class Unet(nn.Module):
         chn = model_channels
         resolution = init_resolution
         self.downblocks = nn.ModuleList()
+        in_channels = model_channels
         for level, mult in enumerate(mults):
+            current_block = []
             out_channels = model_channels * mult # it's not cumulative
             for _ in range(num_res_blocks):
                 self.downblocks.append(
@@ -51,7 +53,9 @@ class Unet(nn.Module):
                 self.downblocks.append(
                     DownSample(out_channels)
                 )
-                resolution /= 2 # Downsampled
+                resolution = int(resolution / 2) # Downsampled
+            print("resolution : ", resolution)
+            # self.downblocks.append(nn.Sequential(*current_block))
         
         middle_channel = out_channels*2
         self.middleblocks = nn.ModuleList([
@@ -61,23 +65,32 @@ class Unet(nn.Module):
         ])
 
         in_channels=middle_channel
+        self.upsamples = nn.ModuleList()
+        for level, mult in enumerate(mults[::-1]):
+            out_channels = model_channels*mult
+            self.upsamples.append(
+                UpSample(in_channels, out_channels, is_scale=level!=0)
+            )
+            in_channels = out_channels
+        
         self.upblocks = nn.ModuleList()
         for level, mult in enumerate(mults[::-1]):
             out_channels = model_channels*mult
+            in_channels = out_channels*2
+            current_block = nn.ModuleList()
             for _ in range(num_res_blocks):
-                self.upblocks.append(
-                    ResBlock(out_channels*2, out_channels, time_emb_dim=time_dim)
+                current_block.append(
+                    ResBlock(in_channels, out_channels, time_emb_dim=time_dim)
                 )
                 if len(mults) - level - 1 in attention_resolutions:
-                    self.upblocks.append(
+                    current_block.append(
                         TransformerBlock(out_channels, resolution=resolution, n_heads=8, context_dim=context_dim, mult=2)
                     )
                 in_channels = out_channels
-            if level != len(mults)-1:
-                self.upblocks.append(
-                    UpSample(out_channels)
-                )
-                resolution *= 2
+            print("resolution : ", resolution)
+            resolution = int(resolution * 2) # Downsampled
+            self.upblocks.append(current_block)
+        self.connections = []
 
     def forward(self, x, t, context=None):
         initial = self.init_conv(x)
@@ -85,19 +98,21 @@ class Unet(nn.Module):
         
         x = self.init_conv(x)
 
-        connections = []
+        self.connections = []
         for i, layer in enumerate(self.downblocks):
-            x = layer(x, t_emb)
-            if i%2==0:
-                connections.append(x)
-        
+            if self.downblocks[i].__class__.__name__ == "DownSample":
+                self.connections.append(x)
+            x = layer(x, t_emb, context)
+        self.connections.append(x)
+
         for layer in self.middleblocks:
-            x = layer(x, t_emb)
+            x = layer(x, t_emb, context)
 
         for i in range(len(self.upblocks)):
             x = self.upsamples[i](x, t_emb)
-            x = torch.concat((x, connections[::-1][i]), dim=1)
-            x = self.upblocks[i](x, t_emb)
+            x = torch.concat((x, self.connections[::-1][i]), dim=1)
+            for j in range(len(self.upblocks[i])):
+                x = self.upblocks[i][j](x, t_emb, context)
 
         x = self.last_conv(x)
         

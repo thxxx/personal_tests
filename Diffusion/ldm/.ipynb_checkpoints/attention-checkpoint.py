@@ -62,7 +62,7 @@ class CrossAttention2(nn.Module):
         bs, c, h, w = x.shape
         q = self.to_q(x)
         if context != None:
-            context = context.view(16, 512, 1, 1).expand(-1, -1, h, w)
+            context = context.view(bs, self.context_dim, 1, 1).expand(-1, -1, h, w)
         else:
             context = x
         k = self.to_k(context)

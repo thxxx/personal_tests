@@ -9,7 +9,7 @@ def visualize(img, epoch=0, save=False, chn=3, output_dir="./"):
         plt.imshow(img)
         plt.show()
     elif img.shape[0]>1 and len(img.shape)>2:
-        fig, axes = plt.subplots(2, 4, figsize=(12, 5))
+        fig, axes = plt.subplots(1, 4, figsize=(12, 5))
         for i, ax in enumerate(axes.flat):
             image = img[i].squeeze()
             if chn==3:

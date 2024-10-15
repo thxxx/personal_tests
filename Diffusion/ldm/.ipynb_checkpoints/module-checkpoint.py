@@ -30,12 +30,15 @@ class DownSample(nn.Module):
         return self.down(x)
 
 class UpSample(nn.Module):
-    def __init__(self, chn, chn_out):
+    def __init__(self, chn, chn_out, is_scale=True):
         super(UpSample, self).__init__()
-        self.up = nn.Upsample(scale_factor=2, mode='nearest')
+        self.is_scale = is_scale
+        if is_scale:
+            self.up = nn.Upsample(scale_factor=2, mode='nearest')
         self.conv = nn.Conv2d(chn, chn_out, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x, t_embed, context=None):
-        x = self.up(x)
+        if self.is_scale:
+            x = self.up(x)
         x = self.conv(x)
         return x
