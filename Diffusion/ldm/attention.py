@@ -10,23 +10,21 @@ class ConvPositionEmbed(nn.Module):
     def __init__(self, dim: int, kernel_size: int):
         super().__init__()
         assert kernel_size % 2 == 1, "kernel size must be odd for ConvPositionEmbed"
-        self.conv1 = nn.Conv1d(
+        self.conv1 = nn.Conv2d(
             dim, dim, kernel_size, padding=kernel_size // 2, groups=16
         )
-        self.conv2 = nn.Conv1d(
+        self.conv2 = nn.Conv2d(
             dim, dim, kernel_size, padding=kernel_size // 2, groups=16
         )
         self.gelu = nn.GELU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         origin = x
-        x = rearrange(x, "b n c -> b c n")
         x = self.conv1(x)
         x = self.gelu(x)
 
         x = self.conv2(x)
         x = self.gelu(x)
-        x = rearrange(x, "b c n -> b n c")
         return x + origin # residual connection
 
 class CrossAttention(nn.Module):
@@ -83,7 +81,6 @@ class CrossAttention(nn.Module):
         output = rearrange(output, 'b h (x y) d -> b (h d) x y', x=H, y=W)
 
         output = self.to_out(output)
-        print("output shape", output.shape)
 
         return output
 
@@ -132,7 +129,7 @@ class CrossAttention2(nn.Module):
         return output
 
 def modulate(x, shift, scale):
-    return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+    return x * (1 + scale.unsqueeze(-1).unsqueeze(-1)) + shift.unsqueeze(-1).unsqueeze(-1)
 
 class TransformerBlock(nn.Module):
     """
@@ -162,10 +159,11 @@ class TransformerBlock(nn.Module):
     def forward(self, x, t_emb, context=None):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = t_emb.chunk(6, dim=1)
 
-        x = self.self_attn(modulate(self.norm1(x), shift_msa, scale_msa)) + x * gate_msa.unsqueeze(1)
+        saout = self.self_attn(modulate(self.norm1(x), shift_msa, scale_msa))
+        x = saout + x * gate_msa.unsqueeze(-1).unsqueeze(-1)
         if context:
             x = self.cross_attn(self.norm2(x), context=context) + x
-        x = self.feed_forward(modulate(self.norm3(x), shift_mlp, scale_mlp)) + x * gate_mlp.unsqueeze(0)
+        x = self.feed_forward(modulate(self.norm3(x), shift_mlp, scale_mlp)) + x * gate_mlp.unsqueeze(-1).unsqueeze(-1)
 
         return x
 
@@ -203,11 +201,12 @@ class DiT(nn.Module):
         # 아마 time의 shape은 (BS,)
         t_emb = self.time_embed(time)
         t_emb = self.time_mlp(t_emb)
-        print("t_emb  :", t_emb.shape)
 
         x = self.positional_enc(x)
 
         x = self.prev(x)
         for layer in self.layers:
-            x = layer(x, t_emb=t_emb)
+            x = layer(x, t_emb=t_emb.squeeze())
         x = self.to_out(x)
+
+        return x
