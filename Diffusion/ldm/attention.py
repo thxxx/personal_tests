@@ -4,6 +4,30 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from einops import rearrange
+import math
+
+class ConvPositionEmbed(nn.Module):
+    def __init__(self, dim: int, kernel_size: int):
+        super().__init__()
+        assert kernel_size % 2 == 1, "kernel size must be odd for ConvPositionEmbed"
+        self.conv1 = nn.Conv1d(
+            dim, dim, kernel_size, padding=kernel_size // 2, groups=16
+        )
+        self.conv2 = nn.Conv1d(
+            dim, dim, kernel_size, padding=kernel_size // 2, groups=16
+        )
+        self.gelu = nn.GELU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        origin = x
+        x = rearrange(x, "b n c -> b c n")
+        x = self.conv1(x)
+        x = self.gelu(x)
+
+        x = self.conv2(x)
+        x = self.gelu(x)
+        x = rearrange(x, "b c n -> b n c")
+        return x + origin # residual connection
 
 class CrossAttention(nn.Module):
     """
@@ -107,6 +131,8 @@ class CrossAttention2(nn.Module):
 
         return output
 
+def modulate(x, shift, scale):
+    return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
 
 class TransformerBlock(nn.Module):
     """
@@ -125,17 +151,63 @@ class TransformerBlock(nn.Module):
         self.norm3 = nn.BatchNorm2d(in_channels)
 
         self.self_attn = CrossAttention(in_channels, n_heads=8)
-        self.cross_attn = CrossAttention(in_channels, n_heads=8, context_dim=context_dim)
+        if context_dim is not None:
+            self.cross_attn = CrossAttention(in_channels, n_heads=8, context_dim=context_dim)
         self.feed_forward = nn.Sequential(
             nn.Conv2d(in_channels, inner_dim, kernel_size=3, stride=1, padding=1),
             nn.GELU(),
             nn.Conv2d(inner_dim, in_channels, kernel_size=3, stride=1, padding=1),
         )
 
-    def forward(self, x, context=None):
-        x = self.self_attn(self.norm1(x)) + x
+    def forward(self, x, t_emb, context=None):
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = t_emb.chunk(6, dim=1)
+
+        x = self.self_attn(modulate(self.norm1(x), shift_msa, scale_msa)) + x * gate_msa.unsqueeze(1)
         if context:
             x = self.cross_attn(self.norm2(x), context=context) + x
-        x = self.feed_forward(self.norm3(x)) + x
+        x = self.feed_forward(modulate(self.norm3(x), shift_mlp, scale_mlp)) + x * gate_mlp.unsqueeze(0)
 
         return x
+
+class TimeEncoding(nn.Module):
+    """used by @crowsonkb"""
+
+    def __init__(self, dim: int):
+        super().__init__()
+        assert dim % 2 == 0, "dimension must be divisible by 2"
+        half_dim = dim // 2
+        self.weights = nn.Parameter(torch.randn(half_dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        freqs = 2 * math.pi * torch.einsum("b, d -> b d", x, self.weights) # x는 스칼라값 list. 여기 각 weight가 곱해져서 embedding이 된다.
+        fouriered = torch.cat((freqs.sin(), freqs.cos()), dim=-1)
+        return rearrange(fouriered, "b d -> b () d")
+
+class DiT(nn.Module):
+    def __init__(self, in_dim, model_dim, resolution, depth, num_heads):
+        super(DiT, self).__init__()
+        self.prev = nn.Conv2d(in_dim, model_dim, kernel_size=1, stride=1, padding=0)
+        self.layers = nn.ModuleList(
+            TransformerBlock(model_dim, resolution=resolution, n_heads=num_heads, context_dim=None, mult=2)
+            for idx in range(depth)
+        )
+        self.to_out = nn.Conv2d(in_dim, model_dim, kernel_size=1, stride=1, padding=0)
+        self.time_embed = TimeEncoding(model_dim)
+        self.time_mlp = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(model_dim, 6 * model_dim, bias=True)
+        )
+        self.positional_enc = ConvPositionEmbed(model_dim, kernel_size=3)
+    
+    def forward(self, x, time):
+        # 아마 time의 shape은 (BS,)
+        t_emb = self.time_embed(time)
+        t_emb = self.time_mlp(t_emb)
+        print("t_emb  :", t_emb.shape)
+
+        x = self.positional_enc(x)
+
+        x = self.prev(x)
+        for layer in self.layers:
+            x = layer(x, t_emb=t_emb)
+        x = self.to_out(x)
