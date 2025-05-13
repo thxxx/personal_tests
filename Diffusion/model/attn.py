@@ -15,7 +15,7 @@ class AttnBlock(nn.Module):
         k = self.key(x)
         v = self.value(x)
 
-        q = q.permute(0, 2, 3, 1).view(B, H*W, C)
+        q = q.permute(0, 2, 3, 1).view(B, H*W, C) # rearrange(q, 'b c h w -> b (h w) c')
         k = k.view(B, C, H*W)
         v = v.permute(0, 2, 3, 1).view(B, H*W, C)
 
