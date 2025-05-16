@@ -6,6 +6,51 @@ import torch.nn.functional as F
 from einops import rearrange
 import math
 
+
+class CrossAttention2(nn.Module):
+    def __init__(self, in_channels, dim_head=64, n_heads=8, context_dim=None):
+        super(CrossAttention2, self).__init__()
+        self.n_heads = n_heads
+        self.dim_head = dim_head
+        self.in_channels = in_channels
+
+        self.context_dim = context_dim if context_dim is not None else in_channels
+        inner_dim = dim_head * n_heads
+
+        self.to_q = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+        self.to_k = nn.Conv2d(self.context_dim, inner_dim, kernel_size=1, stride=1, padding=0)
+        self.to_v = nn.Conv2d(self.context_dim, inner_dim, kernel_size=1, stride=1, padding=0)
+
+        self.w = nn.Sequential(
+            nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0),
+            nn.Dropout(0.)
+        )
+        self.scale = dim_head ** 0.5
+
+
+    def forward(self, x, context=None):
+        bs, c, h, w = x.shape
+        q = self.to_q(x)
+        if context != None:
+            context = context.view(bs, self.context_dim, 1, 1).expand(-1, -1, h, w)
+        else:
+            context = x
+        k = self.to_k(context)
+        v = self.to_v(context) # bs, dim_head * n_heads, h, w
+
+        q = q.view(bs, self.n_heads, self.dim_head, h*w).permute(0, 1, 3, 2) # h*w는 sequence length, token 수로 해석된다. pixel간의 관계가 중요함.
+        k = k.view(bs, self.n_heads, self.dim_head, h*w)
+        v = v.view(bs, self.n_heads, self.dim_head, h*w)
+
+        attention_weight = F.softmax(torch.matmul(q, k)/self.scale, dim=-1) # bs, n_heads, h*w, h*w
+        output = torch.matmul(v, attention_weight) # bs, n_heads, dim_head, h*w 
+        # torch.bmm은 batch단위 matnul. 따라서 입력이 3차원 이어야함
+
+        output = rearrange(output, 'b n d (h w) -> b (n d) h w', h=h, w=w)
+        output = self.w(output)
+
+        return output
+
 class ConvPositionEmbed(nn.Module):
     def __init__(self, dim: int, kernel_size: int):
         super().__init__()
@@ -25,7 +70,7 @@ class ConvPositionEmbed(nn.Module):
 
         x = self.conv2(x)
         x = self.gelu(x)
-        return x + origin # residual connection
+        return x + origin # add positional embedding at the origin
 
 class CrossAttention(nn.Module):
     """
@@ -84,49 +129,19 @@ class CrossAttention(nn.Module):
 
         return output
 
-class CrossAttention2(nn.Module):
-    def __init__(self, in_channels, dim_head=64, n_heads=8, context_dim=None):
-        super(CrossAttention2, self).__init__()
-        self.n_heads = n_heads
-        self.dim_head = dim_head
-        self.in_channels = in_channels
+class TimeEncoding(nn.Module):
+    """used by @crowsonkb"""
 
-        self.context_dim = context_dim if context_dim is not None else in_channels
-        inner_dim = dim_head * n_heads
+    def __init__(self, dim: int):
+        super().__init__()
+        assert dim % 2 == 0, "dimension must be divisible by 2"
+        half_dim = dim // 2
+        self.weights = nn.Parameter(torch.randn(half_dim))
 
-        self.to_q = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
-        self.to_k = nn.Conv2d(self.context_dim, inner_dim, kernel_size=1, stride=1, padding=0)
-        self.to_v = nn.Conv2d(self.context_dim, inner_dim, kernel_size=1, stride=1, padding=0)
-
-        self.w = nn.Sequential(
-            nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0),
-            nn.Dropout(0.)
-        )
-        self.scale = dim_head ** 0.5
-
-
-    def forward(self, x, context=None):
-        bs, c, h, w = x.shape
-        q = self.to_q(x)
-        if context != None:
-            context = context.view(bs, self.context_dim, 1, 1).expand(-1, -1, h, w)
-        else:
-            context = x
-        k = self.to_k(context)
-        v = self.to_v(context) # bs, dim_head * n_heads, h, w
-
-        q = q.view(bs, self.n_heads, self.dim_head, h*w).permute(0, 1, 3, 2) # h*w는 sequence length, token 수로 해석된다. pixel간의 관계가 중요함.
-        k = k.view(bs, self.n_heads, self.dim_head, h*w)
-        v = v.view(bs, self.n_heads, self.dim_head, h*w)
-
-        attention_weight = F.softmax(torch.matmul(q, k)/self.scale, dim=-1) # bs, n_heads, h*w, h*w
-        output = torch.matmul(v, attention_weight) # bs, n_heads, dim_head, h*w 
-        # torch.bmm은 batch단위 matnul. 따라서 입력이 3차원 이어야함
-
-        output = rearrange(output, 'b n d (h w) -> b (n d) h w', h=h, w=w)
-        output = self.w(output)
-
-        return output
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        freqs = 2 * math.pi * torch.einsum("b, d -> b d", x, self.weights) # x는 스칼라값 list. 여기 각 weight가 곱해져서 embedding이 된다.
+        fouriered = torch.cat((freqs.sin(), freqs.cos()), dim=-1)
+        return rearrange(fouriered, "b d -> b () d")
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(-1).unsqueeze(-1)) + shift.unsqueeze(-1).unsqueeze(-1)
@@ -166,20 +181,6 @@ class TransformerBlock(nn.Module):
         x = self.feed_forward(modulate(self.norm3(x), shift_mlp, scale_mlp)) + x * gate_mlp.unsqueeze(-1).unsqueeze(-1)
 
         return x
-
-class TimeEncoding(nn.Module):
-    """used by @crowsonkb"""
-
-    def __init__(self, dim: int):
-        super().__init__()
-        assert dim % 2 == 0, "dimension must be divisible by 2"
-        half_dim = dim // 2
-        self.weights = nn.Parameter(torch.randn(half_dim))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        freqs = 2 * math.pi * torch.einsum("b, d -> b d", x, self.weights) # x는 스칼라값 list. 여기 각 weight가 곱해져서 embedding이 된다.
-        fouriered = torch.cat((freqs.sin(), freqs.cos()), dim=-1)
-        return rearrange(fouriered, "b d -> b () d")
 
 class DiT(nn.Module):
     def __init__(self, in_dim, model_dim, resolution, depth, num_heads):
