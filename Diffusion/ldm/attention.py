@@ -6,6 +6,41 @@ import torch.nn.functional as F
 from einops import rearrange
 import math
 
+class SinusoidalPositionalEmbedding(nn.Module):
+    def __init__(self, d_model: int, max_len: int = 5000):
+        """
+        Args:
+            d_model: 임베딩 차원 수
+            max_len: 최대 시퀀스 길이 (미리 계산해 둘 길이)
+        """
+        super().__init__()
+        # (max_len, d_model)
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # (max_len, 1)
+        # 짝수/홀수 인덱스마다 다른 스케일로
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float) * 
+            (-math.log(10000.0) / d_model)
+        )  # (d_model/2,)
+
+        pe[:, 0::2] = torch.sin(position * div_term)  # 짝수 차원
+        pe[:, 1::2] = torch.cos(position * div_term)  # 홀수 차원
+
+        # (1, max_len, d_model) 형태로 변환해 buffer 로 저장
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x: (batch_size, seq_len, d_model)
+        Returns:
+            pos_emb: (batch_size, seq_len, d_model)
+        """
+        seq_len = x.size(1)
+        # 첫 차원(batch)은 broadcast 되므로 그대로 반환
+        return x + self.pe[:, :seq_len, :].to(x.device)
+
 class ConvPositionEmbed(nn.Module):
     def __init__(self, dim: int, kernel_size: int):
         super().__init__()
@@ -20,11 +55,13 @@ class ConvPositionEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         origin = x
+        x = rearrange(x, "bs n d -> bs d n")
         x = self.conv1(x)
         x = self.gelu(x)
 
         x = self.conv2(x)
         x = self.gelu(x)
+        x = rearrange(x, "bs d n -> bs n d")
         return x + origin # add positional embedding at the origin
 
 class CrossAttention(nn.Module):
@@ -44,7 +81,7 @@ class CrossAttention(nn.Module):
         self.to_out = nn.Linear(model_dim, model_dim, bias=False)
 
     def forward(self, x, context=None):
-        B, C, SL = x.shape
+        B, SL, C = x.shape
 
         # context is used as Key, Value
         if self.is_cross and context is not None:
@@ -55,16 +92,16 @@ class CrossAttention(nn.Module):
             V = self.value(x)
         Q = self.query(x)
 
-        Q = rearrange(Q, 'b (h d) n -> b h n d', h=self.num_heads)
-        K = rearrange(K, 'b (h d) n -> b h n d', h=self.num_heads)
-        V = rearrange(V, 'b (h d) n -> b h n d', h=self.num_heads)
+        Q = rearrange(Q, 'b n (h d) -> b h n d', h=self.num_heads)
+        K = rearrange(K, 'b n (h d) -> b h n d', h=self.num_heads)
+        V = rearrange(V, 'b n (h d) -> b h n d', h=self.num_heads)
         
         attn_scores = torch.einsum('bhid,bhjd->bhij', Q, K) / (int(C//self.num_heads) ** 0.5)  # [B, heads, HW_q, HW_k]
         attn_weights = F.softmax(attn_scores, dim=-1)
         output = torch.einsum('bhij,bhjd->bhid', attn_weights, V)  # [B, heads, HW, head_dim]
 
         # Concat heads
-        output = rearrange(output, 'b h n d -> b (h d) n')
+        output = rearrange(output, 'b h n d -> b n (h d)')
 
         output = self.to_out(output)
 
@@ -85,7 +122,7 @@ class TimeEncoding(nn.Module):
         return rearrange(fouriered, "b d -> b () d")
 
 def modulate(x, shift, scale):
-    return x * (1 + scale.unsqueeze(-1)) + shift.unsqueeze(-1)
+    return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
 
 class TransformerBlock(nn.Module):
     """
@@ -97,14 +134,20 @@ class TransformerBlock(nn.Module):
         # cross attn
         # feedforward
         
-        self.norm1 = nn.RMSNorm(model_dim)
+        self.norm1 = nn.LayerNorm(model_dim)
         if context_dim is not None:
-            self.norm2 = nn.RMSNorm(model_dim)
-        self.norm3 = nn.RMSNorm(model_dim)
+            self.norm2 = nn.LayerNorm(model_dim)
+        self.norm3 = nn.LayerNorm(model_dim)
 
         self.self_attn = CrossAttention(model_dim, n_heads=8)
         if context_dim is not None:
             self.cross_attn = CrossAttention(model_dim, n_heads=8, context_dim=context_dim)
+
+        self.time_mlp = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(model_dim, 6 * model_dim, bias=False)
+        )
+        nn.init.zeros_(self.time_mlp[-1].weight)
         
         self.feed_forward = nn.Sequential(
             nn.Linear(model_dim, model_dim*4, bias=False),
@@ -113,40 +156,44 @@ class TransformerBlock(nn.Module):
         )
 
     def forward(self, x, t_emb, context=None):
+        t_emb = self.time_mlp(t_emb)
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = t_emb.chunk(6, dim=1)
 
         saout = self.self_attn(modulate(self.norm1(x), shift_msa, scale_msa))
-        x = saout + x * gate_msa.unsqueeze(-1)
-        if context:
+        x = saout + x * (1+gate_msa.unsqueeze(1))
+        if context is not None:
             x = self.cross_attn(self.norm2(x), context=context) + x
-        x = self.feed_forward(modulate(self.norm3(x), shift_mlp, scale_mlp)) + x * gate_mlp.unsqueeze(-1)
+        x = self.feed_forward(modulate(self.norm3(x), shift_mlp, scale_mlp)) + x * (1+gate_mlp.unsqueeze(1))
 
         return x
 
 class DiT(nn.Module):
     def __init__(self, in_dim, model_dim, depth, num_heads):
         super(DiT, self).__init__()
-        self.prev = nn.Linear(in_dim, model_dim, bias=False)
+        self.prev = nn.Linear(in_dim, model_dim, bias=True)
         self.layers = nn.ModuleList(
             TransformerBlock(model_dim, n_heads=num_heads, context_dim=None)
             for idx in range(depth)
         )
-        self.to_out = nn.Linear(model_dim, in_dim, bias=False)
+        self.to_out = nn.Linear(model_dim, in_dim, bias=True)
         
         self.time_embed = TimeEncoding(model_dim)
-        self.time_mlp = nn.Sequential(
-            nn.SiLU(),
-            nn.Linear(model_dim, 6 * model_dim, bias=True)
-        )
-        self.positional_enc = ConvPositionEmbed(model_dim, kernel_size=3)
+        # self.time_mlp = nn.Sequential(
+        #     nn.SiLU(),
+        #     nn.Linear(model_dim, 6 * model_dim, bias=True)
+        # )
+        # self.positional_enc = ConvPositionEmbed(model_dim, kernel_size=3)
+        self.pos_enc = SinusoidalPositionalEmbedding(model_dim, max_len=64)
+
+        assert model_dim % num_heads == 0
     
     def forward(self, x, time):
         # 아마 time의 shape은 (BS,)
         t_emb = self.time_embed(time)
-        t_emb = self.time_mlp(t_emb)
+        # t_emb = self.time_mlp(t_emb)
 
         x = self.prev(x)
-        x = self.positional_enc(x)
+        x = self.pos_enc(x)
         
         for layer in self.layers:
             x = layer(x, t_emb=t_emb.squeeze())
