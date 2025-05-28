@@ -1,0 +1,248 @@
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-23): 24 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-23): 24 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-19): 20 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-19): 20 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-19): 20 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-19): 20 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-19): 20 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
+DiT(
+  (prev): Linear(in_features=4, out_features=768, bias=True)
+  (layers): ModuleList(
+    (0-19): 20 x TransformerBlock(
+      (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (norm3): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+      (self_attn): Attention(
+        (query): Linear(in_features=768, out_features=768, bias=False)
+        (key): Linear(in_features=768, out_features=768, bias=False)
+        (value): Linear(in_features=768, out_features=768, bias=False)
+        (to_out): Linear(in_features=768, out_features=768, bias=False)
+      )
+      (feed_forward): Sequential(
+        (0): Linear(in_features=768, out_features=3072, bias=False)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=3072, out_features=768, bias=False)
+      )
+      (time_mlp): Sequential(
+        (0): SiLU()
+        (1): Linear(in_features=768, out_features=4608, bias=True)
+      )
+    )
+  )
+  (to_out): Linear(in_features=768, out_features=4, bias=True)
+  (time_embed): TimeEncoding()
+  (positional_enc): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+)
