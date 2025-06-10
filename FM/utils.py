@@ -1,4 +1,16 @@
 import matplotlib.pyplot as plt
+import torchvision.transforms.functional as F
+
+# 예: image shape = (3, H, W), 값은 [0, 1]
+def show_tensor_image(img_tensor):
+    # tensor → numpy
+    img = img_tensor.detach().cpu()
+    if img.ndim == 4:  # 배치가 있을 경우 첫 번째 이미지만
+        img = img[0]
+    img = F.to_pil_image(img)
+    plt.imshow(img)
+    plt.axis("off")
+    plt.show()
 
 def visualize(img, epoch=0, save=False, chn=3, output_dir="./"):
     if img.shape[0] == 1:
