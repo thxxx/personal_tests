@@ -66,7 +66,7 @@ class Attention(nn.Module):
             K = self.key(x)
             V = self.value(x)
         Q = self.query(x)
-
+        
         Q = rearrange(Q, 'b n (h d) -> b h n d', h=self.num_heads)
         K = rearrange(K, 'b n (h d) -> b h n d', h=self.num_heads)
         V = rearrange(V, 'b n (h d) -> b h n d', h=self.num_heads)
@@ -80,11 +80,22 @@ class Attention(nn.Module):
         attn_weights = F.softmax(attn_scores, dim=-1)
         output = torch.einsum('bhij,bhjd->bhid', attn_weights, V)  # [B, heads, HW, head_dim]
 
+        # use scaled_dot_product_attention
+        # if context is None:
+        #     alibi = self.get_alibi_bias(SL, Q.device)  # shape: [B, h, n, k]
+        # else:
+        #     alibi = None
+        # # scaled_dot_product_attention: (q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
+        # output = F.scaled_dot_product_attention(
+        #     Q, K, V,
+        #     attn_mask=alibi,
+        #     dropout_p=0.0,  # you can add dropout if needed
+        #     is_causal=False  # set True if you want causal masking
+        # )
+
         # Concat heads
         output = rearrange(output, 'b h n d -> b n (h d)')
-
         output = self.to_out(output)
-
         return output
 
 class TimeEncoding(nn.Module):
@@ -119,9 +130,9 @@ class TransformerBlock(nn.Module):
             self.norm2 = nn.LayerNorm(model_dim)
         self.norm3 = nn.LayerNorm(model_dim)
 
-        self.self_attn = Attention(model_dim, n_heads=8)
+        self.self_attn = Attention(model_dim, n_heads=n_heads)
         if context_dim is not None:
-            self.cross_attn = Attention(model_dim, n_heads=8, context_dim=context_dim)
+            self.cross_attn = Attention(model_dim, n_heads=n_heads, context_dim=context_dim)
         
         self.feed_forward = nn.Sequential(
             nn.Linear(model_dim, model_dim*4, bias=False),
