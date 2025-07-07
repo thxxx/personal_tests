@@ -3,3 +3,4 @@ Diffusion/data
 Diffusion/logs*
 Diffusion/data
 Diffusion/img_align_celeba
+*.ipynb_checkpoints*
