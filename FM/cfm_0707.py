@@ -6,16 +6,32 @@ from typing import cast
 from einops import einsum, rearrange, repeat
 from torch import Tensor, nn
 from torch.nn import functional as F
-from utils.typing import EncMaskTensor
+from jaxtyping import Bool, Float, Int
+from torch import Tensor
+
+AudioTensor = Float[Tensor, "batch audio audio_channel"]
+AudioMaskTensor = Bool[Tensor, "batch audio"]
+EncTensor = Float[Tensor, "batch codec channel"]
+EncMaskTensor = Bool[Tensor, "batch codec"]
+LengthTensor = Int[Tensor, "batch"]
+LossTensor = Float[Tensor, ""]
+TimeTensor = Float[Tensor, "batch"]
+Batch = tuple[AudioTensor, AudioMaskTensor]
+
+import torch
+import torch.nn as nn
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim: int):
+    def __init__(self, dim, eps=1e-8):
         super().__init__()
-        self.dim = dim
-        self.gamma = nn.Parameter(torch.ones(dim))
+        self.eps = eps
+        self.scale = nn.Parameter(torch.ones(dim))
 
-    def forward(self, x: Tensor) -> Tensor:
-        return F.rms_norm(x, (self.dim,), self.gamma)
+    def forward(self, x):
+        # x: (batch, ..., dim)
+        norm = x.norm(2, dim=-1, keepdim=True) / (x.shape[-1] ** 0.5)
+        return self.scale * x / (norm + self.eps)
+
 
 
 class SelfAttention(nn.Module):
@@ -122,12 +138,12 @@ class Transformer(nn.Module):
         self.final_norm = RMSNorm(dim)
 
     def forward(
-        self, x: Tensor, mask: EncMaskTensor, time_emb
+        self, x: Tensor, mask: EncMaskTensor, cond: Tensor
     ) -> Tensor:
         
         skip_connects = []
         for layer in self.layers:
-            time_emb = layer.time_mlp(time_emb)
+            time_emb = layer.time_mlp(cond)
             shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = time_emb.chunk(6, dim=1)
 
             if layer.skip:
@@ -206,7 +222,6 @@ class Cfm(nn.Module):
 
         self.combine = nn.Linear(in_dim * 2, dim)
         self.conv_embed = ConvPositionEmbed(dim=dim, kernel_size=3)
-        self.phoneme_linear = nn.Linear(text_dim, dim)
         self.time_emb = TimeEncoding(dim)
         self.class_embedder = nn.Embedding(num_classes, dim)
 
@@ -263,7 +278,7 @@ class Cfm(nn.Module):
 
         cond = time_emb.squeeze() + class_emb
 
-        w = self.transformer(w, mask=mask, time_emb=cond)
+        w = self.transformer(w, mask=mask, cond=cond)
 
         w = self.to_pred(w)
         return w
