@@ -149,10 +149,9 @@ class Transformer(nn.Module):
             if layer.skip:
                 skip_connect = skip_connects.pop()
                 x = torch.cat((x, skip_connect), dim=-1)
+                x = layer.skip_combiner(x)
             else:
                 skip_connects.append(x)
-
-            x = layer.skip_combiner(x)
 
             attn_input = layer.attn_norm(x)
             attn_input = modulate(attn_input, shift_msa, scale_msa)
@@ -223,7 +222,7 @@ class Cfm(nn.Module):
         self.combine = nn.Linear(in_dim * 2, dim)
         self.conv_embed = ConvPositionEmbed(dim=dim, kernel_size=3)
         self.time_emb = TimeEncoding(dim)
-        self.class_embedder = nn.Embedding(num_classes, dim)
+        self.class_embed = nn.Embedding(num_classes, dim)
 
         self.transformer = Transformer(
             dim=dim,
@@ -269,12 +268,12 @@ class Cfm(nn.Module):
         cls: EncTensor
     ) -> EncTensor:
         embed = torch.cat((w, context), dim=-1)
-
         combined = self.combine(embed)
         w = self.conv_embed(combined, mask)
 
+        # timestep & class condition embedding
         time_emb = self.time_emb(times)
-        class_emb = self.class_embedder(cls) # B, dim
+        class_emb = self.class_embed(cls) # B, dim
 
         cond = time_emb.squeeze() + class_emb
 

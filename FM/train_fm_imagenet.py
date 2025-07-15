@@ -5,14 +5,12 @@ from tqdm import tqdm
 from diffusers import AutoencoderKL
 from types import SimpleNamespace
 from torchdiffeq import odeint_adjoint as odeint # odeint_adjoint는 역전파 효율성을 위해 주로 사용됩니다.
-from utils import visualize, show_tensor_image
+from utils import visualize, show_tensor_image, count_parameters
 from cleanfid import fid
 import torchvision.transforms.functional as TF
 import matplotlib.pyplot as plt
 from torchvision import transforms
-from torch.utils.data import DataLoader
 from einops import rearrange
-import cv2
 import json
 from cfm_0707 import Cfm
 import math
@@ -20,12 +18,10 @@ import time
 import random
 from transformers import get_cosine_schedule_with_warmup
 import numpy as np
-from torchode.interface import solve_ivp
-from einops import repeat
 from torch.utils.tensorboard import SummaryWriter
-
-def count_parameters(model: nn.Module, only_trainable: bool = True):
-    return f"{round(sum(p.numel() for p in model.parameters() if p.requires_grad or not only_trainable)/1000000, 3)}M"
+from datasets import load_dataset
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
 config = {
     "in_dim":4,
@@ -81,12 +77,6 @@ trainer = {
     'fid_scores': [],
 }
 
-from datasets import load_dataset
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
-from PIL import Image
-import torch
-
 # Transform 정의
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -126,8 +116,7 @@ valid_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=Fa
 
 print("train dataloader len : ", len(train_dataloader))
 print("valid dataloader len : ", len(valid_dataloader))
-
-show_tensor_image(next(iter(valid_dataloader))['image'][0])
+# show_tensor_image(next(iter(valid_dataloader))['image'][0])
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate, betas=(cfg.beta_1, cfg.beta_2), weight_decay=cfg.weight_decay)
 scheduler = get_cosine_schedule_with_warmup(
@@ -141,7 +130,8 @@ def write(text):
         file.write(text)
 
 last_saved_epoch = 0
-vae.eval()
+with open('labels_for_fid.json', 'r') as f:
+    labels = json.load(f)
 
 def valid_step(epoch):
     model.eval()
@@ -224,11 +214,9 @@ def valid_step(epoch):
                 trainer['valid_images'].append(predicted_image)
                 tb_writer.add_images("Valid/Samples", predicted_image, epoch)
 
+        fid_score = None
         # Get FID per 3epochs
         if epoch % 1 == 0:
-            with open('labels_for_fid.json', 'r') as f:
-                labels = json.load(f)
-            
             save_dir = f"{cfg.output_dir}/validsets_{epoch}"
             os.makedirs(save_dir, exist_ok=True)
             for cnt in tqdm(range(8)):
@@ -286,22 +274,23 @@ def valid_step(epoch):
     # per data loss
     val_loss = valid_loss/len(valid_dataloader)
     trainer['valid_losses'].append(val_loss)
-
     tb_writer.add_scalar("Valid/Loss", val_loss, epoch)
     
-    if val_loss <= min(trainer['valid_losses']):
-        torch.save(model.state_dict(), f'{cfg.output_dir}/weights/model_{epoch}.pth')
+    # if val_loss <= min(trainer['valid_losses']):
+    torch.save(model.state_dict(), f'{cfg.output_dir}/weights/model_{epoch}.pth')
     
-    valid_text=f'Epoch {epoch} Validation loss - {val_loss}\n\n'
-    write(valid_text)
-    
+    # validation logging
+    write(f'Epoch {epoch} Validation loss - {val_loss}\n\n')
     plt.plot(trainer['valid_losses'])
     plt.savefig(f'{cfg.output_dir}/valid_loss.png')
     plt.close()
     
-    plt.plot(trainer['fid_scores'])
-    plt.savefig(f'{cfg.output_dir}/fid_scores.png')
-    plt.close()
+    # fid logging
+    if fid_score is not None:
+        write(f'Epoch {epoch} Fid Score - {fid_score}\n\n')
+        plt.plot(trainer['fid_scores'])
+        plt.savefig(f'{cfg.output_dir}/fid_scores.png')
+        plt.close()
     
     visualize(trainer['valid_images'][-1], epoch=epoch, save=True, output_dir=cfg.output_dir)
 

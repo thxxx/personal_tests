@@ -34,4 +34,7 @@ def visualize(img, epoch=0, save=False, chn=3, output_dir="./"):
         else:
             plt.show()
         plt.close()
-    
+
+
+def count_parameters(model, only_trainable: bool = True):
+    return f"{round(sum(p.numel() for p in model.parameters() if p.requires_grad or not only_trainable)/1000000, 3)}M"
