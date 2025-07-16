@@ -3,8 +3,11 @@ apt-get install unzip
 git config --global user.email zxcv05999@naver.com
 git config --global user.name thxxx
 python -m pip install --upgrade pip
-pip install tqdm matplotlib einops diffusers accelerate transformers datasets opencv-python torchdiffeq clean-fid jaxtyping flash-attn
+pip install tqdm matplotlib einops diffusers accelerate transformers datasets opencv-python torchdiffeq clean-fid jaxtyping tensorboard
+pip install --upgrade pillow
 
+# pip install "numpy<2"
+# pip install flash-attn
 # wget https://huggingface.co/CompVis/stable-diffusion-v1-4/resolve/main/vae/diffusion_pytorch_model.safetensors?download=true
 
 # curl -L -o ./celeba-dataset.zip  https://www.kaggle.com/api/v1/datasets/download/jessicali9530/celeba-dataset/
