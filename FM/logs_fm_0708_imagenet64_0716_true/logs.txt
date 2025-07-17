@@ -1,0 +1,40 @@
+Epoch 0 Train loss - 0.9881926482192244
+Epoch 0 Validation loss - 0.8967137908448979
+
+Epoch 1 Train loss - 0.8994428085538145
+Epoch 1 Validation loss - 0.8593997298454752
+
+Epoch 1 Fid Score - 174.0805093633976
+
+Epoch 2 Train loss - 0.8789368964041384
+Epoch 2 Validation loss - 0.8483280052944105
+
+Epoch 3 Train loss - 0.8695234979589146
+Epoch 3 Validation loss - 0.8408537336758205
+
+Epoch 3 Fid Score - 158.5268985042756
+
+Epoch 4 Train loss - 0.8651404764515143
+Epoch 4 Validation loss - 0.8352580800348398
+
+Epoch 5 Train loss - 0.8603069618011054
+Epoch 5 Validation loss - 0.8326086973657414
+
+Epoch 5 Fid Score - 151.45421483677592
+
+Epoch 6 Train loss - 0.8568638643612877
+Epoch 6 Validation loss - 0.830397537776402
+
+Epoch 7 Train loss - 0.854262658772758
+Epoch 7 Validation loss - 0.825570213551424
+
+Epoch 7 Fid Score - 143.5372402772681
+
+Epoch 8 Train loss - 0.8517957074097551
+Epoch 8 Validation loss - 0.827195617617393
+
+Epoch 9 Train loss - 0.8509780187576342
+Epoch 9 Validation loss - 0.8276657681075894
+
+Epoch 9 Fid Score - 142.05372637070508
+

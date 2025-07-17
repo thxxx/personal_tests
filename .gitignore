@@ -7,5 +7,6 @@ Diffusion/img_align_celeba
 
 *.ipynb_checkpoints*
 *.safetensors
-FM/logs*
-valid_set/
+FM/logs*/weights
+FM/logs*/validsets*
+valid_set_*

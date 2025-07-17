@@ -1,0 +1,6 @@
+Epoch 0 Train loss - 0.057070509510139346
+Epoch 0 Train loss - 0.9931686196369104
+Epoch 0 Validation loss - 0.8929442556536927
+
+Epoch 0 Fid Score - 216.8457354812639
+

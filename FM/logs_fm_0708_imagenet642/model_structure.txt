@@ -1,0 +1,54 @@
+Cfm(
+  (combine): Linear(in_features=8, out_features=768, bias=True)
+  (conv_embed): ConvPositionEmbed(
+    (conv1): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (conv2): Conv1d(768, 768, kernel_size=(3,), stride=(1,), padding=(1,), groups=16)
+    (gelu): GELU(approximate='none')
+  )
+  (time_emb): TimeEncoding()
+  (class_embed): Embedding(1000, 768)
+  (transformer): Transformer(
+    (layers): ModuleList(
+      (0-7): 8 x TransformerBlock(
+        (skip_combiner): Identity()
+        (attn_norm): RMSNorm()
+        (attn): SelfAttention(
+          (to_qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (to_out): Linear(in_features=768, out_features=768, bias=True)
+        )
+        (time_mlp): Sequential(
+          (0): SiLU()
+          (1): Linear(in_features=768, out_features=4608, bias=True)
+        )
+        (ff_norm): RMSNorm()
+        (ff): Sequential(
+          (0): Linear(in_features=768, out_features=3072, bias=True)
+          (1): ReLU()
+          (2): Dropout(p=0.1, inplace=False)
+          (3): Linear(in_features=3072, out_features=768, bias=True)
+        )
+      )
+      (8-15): 8 x TransformerBlock(
+        (skip_combiner): Linear(in_features=1536, out_features=768, bias=True)
+        (attn_norm): RMSNorm()
+        (attn): SelfAttention(
+          (to_qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (to_out): Linear(in_features=768, out_features=768, bias=True)
+        )
+        (time_mlp): Sequential(
+          (0): SiLU()
+          (1): Linear(in_features=768, out_features=4608, bias=True)
+        )
+        (ff_norm): RMSNorm()
+        (ff): Sequential(
+          (0): Linear(in_features=768, out_features=3072, bias=True)
+          (1): ReLU()
+          (2): Dropout(p=0.1, inplace=False)
+          (3): Linear(in_features=3072, out_features=768, bias=True)
+        )
+      )
+    )
+    (final_norm): RMSNorm()
+  )
+  (to_pred): Linear(in_features=768, out_features=4, bias=False)
+)

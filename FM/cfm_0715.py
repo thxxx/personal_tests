@@ -122,7 +122,6 @@ class PatchEmbed(nn.Module):
         x = rearrange(x, "b c h w -> b (h w) c")
         return x
 
-
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -228,11 +227,15 @@ class Cfm(nn.Module):
         heads: int,
         attn_dropout: float,
         ff_dropout: float,
-        num_classes: int
+        num_classes: int,
+        patch_size: int = 2
     ):
         super().__init__()
 
-        self.combine = nn.Linear(in_dim * 2, dim)
+        self.patchify = PatchEmbed(patch_size=patch_size, in_channels=in_dim, embed_dim=dim)
+        self.unconditional_cls_idx = num_classes + 1
+
+        # self.combine = nn.Linear(in_dim * 2, dim)
         self.conv_embed = ConvPositionEmbed(dim=dim, kernel_size=3)
         self.time_emb = TimeEncoding(dim)
         self.class_embed = nn.Embedding(num_classes, dim)
@@ -245,7 +248,8 @@ class Cfm(nn.Module):
             attn_dropout=attn_dropout,
         )
 
-        self.to_pred = nn.Linear(dim, in_dim, bias=False)
+        self.to_pred = nn.Linear(dim, in_dim * patch_size * patch_size, bias=False)
+        self.patch_size = patch_size
 
     def cfg(
         self,
@@ -254,21 +258,37 @@ class Cfm(nn.Module):
         mask: EncMaskTensor,
         times: TimeTensor,
         cls: EncTensor,
-        alpha=0.0,
+        alpha=3.0,
     ) -> EncTensor:
+        b, c, h, wid = w.shape
+        
         w = repeat(w, "b ... -> (r b) ...", r=2)
         context = repeat(context, "b ... -> (r b) ...", r=2)
         mask = repeat(mask, "b ... -> (r b) ...", r=2)
         times = repeat(times, "b ... -> (r b) ...", r=2)
-        cls = repeat(cls, "b ... -> (r b) ...", r=2)
+
+        patched = self.patchify(w)
+        w = self.conv_embed(patched, mask)
+        time_emb = self.time_emb(times)
         
-        logits, null_logits = self(
-            w=w,
-            context=context,
-            audio_mask=mask,
-            times=times,
-            cls=cls
-        ).chunk(2, dim=0)
+        cond = self.class_embed(cls)
+        null_cond = torch.zeros_like(cond)
+        class_emb = torch.concat((cond, null_cond), dim=0)
+        cond = time_emb.squeeze() + class_emb
+
+        w = self.transformer(w, mask=mask, cond=cond)
+        out = self.to_pred(w)
+        
+        out = rearrange(
+            out,
+            "b (h w) (p1 p2 c) -> b c (h p1) (w p2)",
+            h=h // self.patch_size,
+            w=wid // self.patch_size,
+            p1=self.patch_size,
+            p2=self.patch_size,
+        )
+        
+        logits, null_logits = out.chunk(2, dim=0)
 
         return logits + alpha * (logits - null_logits)
     
@@ -278,19 +298,41 @@ class Cfm(nn.Module):
         context: EncTensor,
         mask: EncMaskTensor,
         times: TimeTensor,
-        cls: EncTensor
+        cls: EncTensor,
+        drop_condition
     ) -> EncTensor:
-        embed = torch.cat((w, context), dim=-1)
-        combined = self.combine(embed)
-        w = self.conv_embed(combined, mask)
+        b, c, h, wid = w.shape
+        # embed = torch.cat((w, context), dim=-1)
+        # combined = self.combine(embed)
+        patched = self.patchify(w)
+
+        w = self.conv_embed(patched, mask)
 
         # timestep & class condition embedding
         time_emb = self.time_emb(times)
+        
         class_emb = self.class_embed(cls) # B, dim
+        if drop_condition:
+            class_emb = torch.zeros_like(class_emb)
 
         cond = time_emb.squeeze() + class_emb
 
         w = self.transformer(w, mask=mask, cond=cond)
 
         w = self.to_pred(w)
+        
+        w = rearrange(
+            w,
+            "b (h w) (p1 p2 c) -> b c (h p1) (w p2)",
+            h=h // self.patch_size,
+            w=wid // self.patch_size,
+            p1=self.patch_size,
+            p2=self.patch_size,
+        )
+        
         return w
+
+
+
+
+
