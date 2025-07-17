@@ -62,6 +62,7 @@ model = Cfm(
 )
 model.to(device)
 print(count_parameters(model))
+model = torch.compile(model)
 
 os.makedirs(cfg.output_dir, exist_ok=True)
 os.makedirs(f"{cfg.output_dir}/valid_imgs/", exist_ok=True)
@@ -132,8 +133,21 @@ def write(text):
         file.write(text)
 
 last_saved_epoch = 0
-with open('labels_for_fid.json', 'r') as f:
+with open('labels_for_fid_20480.json', 'r') as f:
     labels = json.load(f)
+
+def sample_timestep(batch_size, dtype):
+    # timestep은 0~1000이 아니라 0~1 사이 실수 값 uniform
+    if cfg.sampling_method == 'uniform':
+        t = torch.rand((batch_size, ), dtype=dtype, device=device)
+    elif cfg.sampling_method == "lognorm":
+        if random.random()<0.2:
+            t = torch.rand((batch_size, ), dtype=dtype, device=device)
+        else:
+            tnorm = np.random.normal(loc=0, scale=1.0, size=batch_size)
+            t = 1 / (1 + np.exp(-tnorm))
+            t = torch.tensor(t, dtype=dtype, device=device)
+    return t
 
 def valid_step(epoch):
     model.eval()
@@ -222,10 +236,10 @@ def valid_step(epoch):
 
         fid_score = None
         # Get FID per 3epochs
-        if epoch % 2 == 1:
+        if epoch % 3 == 1:
             save_dir = f"{cfg.output_dir}/validsets_{epoch}"
             os.makedirs(save_dir, exist_ok=True)
-            for cnt in tqdm(range(8)):
+            for cnt in tqdm(range(80)):
                 y0 = torch.randn((256, 4, 8, 8), device=device)
                 t = torch.linspace(0, 1, 64, device=device, dtype=torch.float32)
                 context = torch.zeros_like(y0).to(device)
@@ -326,16 +340,7 @@ for epoch in range(cfg.epochs):
         # z_0 = z_0.permute(0, 2, 3, 1).reshape(b, h*w, c)
         z_T = torch.randn_like(z_0, device=z_0.device, dtype=z_0.dtype)
 
-        # timestep은 0~1000이 아니라 0~1 사이 실수 값 uniform
-        if cfg.sampling_method == 'uniform':
-            t = torch.rand((b, ), dtype=z_0.dtype, device=device)
-        elif cfg.sampling_method == "lognorm":
-            if random.random()<0.2:
-                t = torch.rand((b, ), dtype=z_0.dtype, device=device)
-            else:
-                tnorm = np.random.normal(loc=0, scale=1.0, size=b)
-                t = 1 / (1 + np.exp(-tnorm))
-                t = torch.tensor(t, dtype=z_0.dtype, device=device)
+        t = sample_timestep(b, z_0.dtype)
         
         t = rearrange(t, "b -> b () () ()")
         z_t = (1 - (1 - cfg.sigma_min)*t) * z_T + t * z_0
