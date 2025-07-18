@@ -30,10 +30,10 @@ config = {
     "num_heads":8,
     "batch_size": 1024,
     "learning_rate": 1e-4,
-    "epochs": 50,
+    "epochs": 100,
     "sampling_steps": 64,
     "latent_scale": 0.18215,
-    "output_dir": "./logs_fm_0717_imagenet64",
+    "output_dir": "./logs_fm_0717_imagenet64_10240",
     "beta_1": 0.9,
     "beta_2": 0.99,
     'weight_decay': 0.001,
@@ -86,6 +86,26 @@ transform = transforms.Compose([
     # transforms.Normalize([0.5], [0.5])
 ])
 
+import glob
+import torch
+from torch.utils.data import Dataset
+
+class PrecomputedLatentDataset(Dataset):
+    def __init__(self, latent_folder):
+        # 저장된 .pt 파일 목록 (정렬 중요)
+        self.files = sorted(glob.glob(f"{latent_folder}/*.pt"))
+    
+    def __len__(self):
+        return len(self.files)
+    
+    def __getitem__(self, idx):
+        data = torch.load(self.files[idx])
+        # key 이름은 train 루프에서 쓰던 것과 맞춰주세요
+        return {
+            "z_0": data["z"],      # latent 이미지
+            "label": data["label"]
+        }
+
 # HuggingFace Dataset → PyTorch Dataset으로 감싸기
 class HFDatasetWrapper(Dataset):
     def __init__(self, hf_dataset, transform=None):
@@ -110,8 +130,8 @@ class HFDatasetWrapper(Dataset):
 dataset = load_dataset("benjamin-paine/imagenet-1k-64x64")
 
 # train/val wrapping
-train_dataset = HFDatasetWrapper(dataset["train"], transform=transform)
-val_dataset = HFDatasetWrapper(dataset["validation"], transform=transform)
+train_dataset = PrecomputedLatentDataset("./latents/train")
+val_dataset = PrecomputedLatentDataset("./latents/valid")
 
 # DataLoader 생성
 train_dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=8, pin_memory=True)
@@ -133,7 +153,7 @@ def write(text):
         file.write(text)
 
 last_saved_epoch = 0
-with open('labels_for_fid_20480.json', 'r') as f:
+with open('labels_for_fid_10240.json', 'r') as f:
     labels = json.load(f)
 
 def sample_timestep(batch_size, dtype):
@@ -155,12 +175,13 @@ def valid_step(epoch):
     tqdm_bar = tqdm(total=len(valid_dataloader), desc="Diffusion validation")
     with torch.no_grad():
         for idx, data in enumerate(valid_dataloader):
-            x_0 = data['image'].to(device)
+            # x_0 = data['image'].to(device)
             label_class = data['label'].to(device)
             
-            with torch.no_grad():
-                z_0 = vae.encode(x_0)
-                z_0 = z_0['latent_dist'].sample() * cfg.latent_scale
+            # with torch.no_grad():
+            #     z_0 = vae.encode(x_0)
+            #     z_0 = z_0['latent_dist'].sample() * cfg.latent_scale
+            z_0 = data['z_0'].to(device)
             
             b, c, h, w = z_0.shape
             # z_0 = z_0.permute(0, 2, 3, 1).reshape(b, h*w, c)
@@ -232,14 +253,13 @@ def valid_step(epoch):
                 tb_writer.add_images("Valid/Samples", predicted_image, epoch)
 
                 visualize(trainer['valid_images'][-1], epoch=epoch, save=True, output_dir=cfg.output_dir)
-        
 
         fid_score = None
         # Get FID per 3epochs
-        if epoch % 3 == 1:
+        if epoch % 5 == 4:
             save_dir = f"{cfg.output_dir}/validsets_{epoch}"
             os.makedirs(save_dir, exist_ok=True)
-            for cnt in tqdm(range(80)):
+            for cnt in tqdm(range(40)):
                 y0 = torch.randn((256, 4, 8, 8), device=device)
                 t = torch.linspace(0, 1, 64, device=device, dtype=torch.float32)
                 context = torch.zeros_like(y0).to(device)
@@ -327,13 +347,14 @@ for epoch in range(cfg.epochs):
     
     start_at = time.time()
     for idx, data in enumerate(train_dataloader):
-        x_0 = data['image'].to(device)
+        # x_0 = data['image'].to(device)
         label_class = data['label'].to(device)
 
         # # 2) VAE encode
-        with torch.no_grad():
-            z_0 = vae.encode(x_0)
-            z_0 = z_0['latent_dist'].sample() * cfg.latent_scale
+        # with torch.no_grad():
+        #     z_0 = vae.encode(x_0)
+        #     z_0 = z_0['latent_dist'].sample() * cfg.latent_scale
+        z_0 = data['z_0'].to(device)
 
         # Flatten latent
         b, c, h, w = z_0.shape

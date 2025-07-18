@@ -1,3 +1,10 @@
 Epoch 0 Train loss - 0.9907157604877179
 Epoch 0 Validation loss - 0.9007071329622852
 
+Epoch 0 Train loss - 0.9904976798513065
+Epoch 0 Validation loss - 0.8972190849635066
+
+Epoch 0 Train loss - 0.9893872003300122
+Epoch 0 Validation loss - 0.9003637822306886
+
+Epoch 1 Train loss - 0.9007868185972634
