@@ -46,7 +46,7 @@ config = {
     "epochs": 80,
     "sampling_steps": 64,
     "latent_scale": 0.18215,
-    "output_dir": "./logs_lightningDiT_0718_imagenet64_10240",
+    "output_dir": "./logs_lightningDiT_0726_imagenet64",
     "beta_1": 0.9,
     "beta_2": 0.95,
     'weight_decay': 0.0,
@@ -78,6 +78,11 @@ vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="
 vae.eval()
 
 model = model.to(device)
+try:
+    state = torch.load('./imagenet_64_0718_47epoch.pth', map_location='cpu')
+    model.load_state_dict(state)
+except Exception as e:
+    print("Error : ", e)
 print(count_parameters(model))
 
 os.makedirs(cfg.output_dir, exist_ok=True)
@@ -314,6 +319,7 @@ for epoch in range(cfg.epochs):
         epoch_loss += loss.cpu().detach().item()
         global_step += 1
         tb_writer.add_scalar("Train/Loss", epoch_loss/global_step, global_step)
+        print("loss : ", loss)
         
         for param_group in optimizer.param_groups:
             tb_writer.add_scalar("Train/LR", param_group["lr"], global_step)
